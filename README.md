@@ -2,6 +2,8 @@
 
 Standalone SaaS/control-plane scaffold for Inactu.
 
+Ecosystem map: `inactu/docs/ecosystem.md` in the substrate repository.
+
 ## Planning
 
 - Product + implementation roadmap: `docs/site-plan.md`
@@ -29,6 +31,8 @@ Optional environment variables:
 - `RUST_LOG` (default: `info`)
 - `DATABASE_URL` (Postgres/Neon connection URL)
 - `INACTU_API_AUTH_SECRET` (shared secret for web-to-api bearer bridge)
+- `INACTU_MAX_REQUESTS_PER_MINUTE` (default: `120`, per-user sliding-window
+  limit on authenticated endpoints)
 
 This repo is pinned to Rust `1.88.0` via `rust-toolchain.toml`.
 

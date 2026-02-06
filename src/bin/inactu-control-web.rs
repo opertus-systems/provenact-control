@@ -1,4 +1,10 @@
-use std::{net::SocketAddr, path::Path as FsPath, str::FromStr};
+use std::{
+    collections::{HashMap, VecDeque},
+    net::SocketAddr,
+    path::Path as FsPath,
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
 
 use axum::{
     extract::{DefaultBodyLimit, Path, Query, State},
@@ -24,6 +30,9 @@ struct AppState {
     database_enabled: bool,
     db_pool: Option<PgPool>,
     api_auth_secret: Option<String>,
+    max_requests_per_minute: usize,
+    replay_cache: Arc<Mutex<HashMap<String, i64>>>,
+    request_windows: Arc<Mutex<HashMap<String, VecDeque<i64>>>>,
 }
 
 #[derive(Debug)]
@@ -232,6 +241,8 @@ struct BridgeTokenClaims {
     sub: String,
     exp: usize,
     iat: usize,
+    nbf: Option<usize>,
+    jti: Option<String>,
     iss: Option<String>,
     aud: Option<String>,
 }
@@ -308,6 +319,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         database_enabled: pool.is_some(),
         db_pool: pool,
         api_auth_secret: std::env::var("INACTU_API_AUTH_SECRET").ok(),
+        max_requests_per_minute: std::env::var("INACTU_MAX_REQUESTS_PER_MINUTE")
+            .ok()
+            .and_then(|raw| raw.parse::<usize>().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or(120),
+        replay_cache: Arc::new(Mutex::new(HashMap::new())),
+        request_windows: Arc::new(Mutex::new(HashMap::new())),
     };
     let app = router(state.clone());
     let bind_addr = bind_address()?;
@@ -430,6 +448,7 @@ fn require_database(state: &AppState) -> Result<PgPool, ApiError> {
 async fn request_ctx(headers: &HeaderMap, state: &AppState) -> Result<RequestCtx, ApiError> {
     let pool = require_database(state)?;
     let user_id = current_user_id(headers, state)?;
+    enforce_rate_limit(state, &user_id)?;
     let owner_id = owner_id_for_user(&pool, &user_id).await?;
     Ok(RequestCtx {
         pool,
@@ -467,11 +486,74 @@ fn current_user_id(headers: &HeaderMap, state: &AppState) -> Result<String, ApiE
     if claims.sub.is_empty() {
         return Err(ApiError::unauthorized("invalid auth token subject"));
     }
-    let _ = claims.exp;
-    let _ = claims.iat;
+    let now = OffsetDateTime::now_utc().unix_timestamp();
+    let exp = claims.exp as i64;
+    let iat = claims.iat as i64;
+    if exp <= now {
+        return Err(ApiError::unauthorized("expired auth token"));
+    }
+    if iat > now + 60 {
+        return Err(ApiError::unauthorized("auth token issued in the future"));
+    }
+    if let Some(nbf) = claims.nbf {
+        let nbf = nbf as i64;
+        if nbf > now + 60 {
+            return Err(ApiError::unauthorized("auth token not yet valid"));
+        }
+    }
+    let jti = claims
+        .jti
+        .as_deref()
+        .ok_or_else(|| ApiError::unauthorized("missing auth token id"))?;
+    if jti.trim().is_empty() {
+        return Err(ApiError::unauthorized("invalid auth token id"));
+    }
+    guard_replay(state, jti, exp)?;
     let _ = claims.iss;
     let _ = claims.aud;
     Ok(claims.sub)
+}
+
+fn guard_replay(state: &AppState, jti: &str, exp: i64) -> Result<(), ApiError> {
+    let now = OffsetDateTime::now_utc().unix_timestamp();
+    let mut cache = state
+        .replay_cache
+        .lock()
+        .map_err(|_| ApiError::internal("failed to lock replay cache"))?;
+    cache.retain(|_, token_exp| *token_exp > now);
+    if cache.contains_key(jti) {
+        return Err(ApiError::unauthorized("replayed auth token"));
+    }
+    cache.insert(jti.to_string(), exp);
+    Ok(())
+}
+
+fn enforce_rate_limit(state: &AppState, user_id: &str) -> Result<(), ApiError> {
+    let now = OffsetDateTime::now_utc().unix_timestamp();
+    let window_start = now - 60;
+    let mut windows = state
+        .request_windows
+        .lock()
+        .map_err(|_| ApiError::internal("failed to lock request windows"))?;
+    let user_window = windows.entry(user_id.to_string()).or_default();
+    while let Some(ts) = user_window.front() {
+        if *ts < window_start {
+            user_window.pop_front();
+        } else {
+            break;
+        }
+    }
+    if user_window.len() >= state.max_requests_per_minute {
+        return Err(ApiError {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            message: format!(
+                "rate limit exceeded: max {} requests/minute",
+                state.max_requests_per_minute
+            ),
+        });
+    }
+    user_window.push_back(now);
+    Ok(())
 }
 
 async fn owner_id_for_user(pool: &PgPool, user_id: &str) -> Result<String, ApiError> {

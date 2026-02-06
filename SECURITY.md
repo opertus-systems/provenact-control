@@ -24,3 +24,5 @@ substrate trust boundaries:
 - Treat auth/session/token handling as high-risk surfaces.
 - Keep the default audited build non-web; run HTTP API only with explicit
   `web` feature enablement.
+- Enforce bounded request rates and reject replayed bearer tokens (`jti`) on
+  authenticated API paths.

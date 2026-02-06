@@ -1,4 +1,5 @@
 import { SignJWT } from "jose";
+import { randomUUID } from "crypto";
 
 export async function createControlApiToken(userId: string): Promise<string> {
   const secret = process.env.INACTU_API_AUTH_SECRET;
@@ -14,7 +15,9 @@ export async function createControlApiToken(userId: string): Promise<string> {
     .setSubject(userId)
     .setIssuer("inactu-web")
     .setAudience("inactu-control")
+    .setJti(randomUUID())
     .setIssuedAt()
+    .setNotBefore("0s")
     .setExpirationTime("5m")
     .sign(new TextEncoder().encode(secret));
 }
