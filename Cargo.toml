@@ -7,7 +7,7 @@ publish = false
 
 [dependencies]
 axum = { version = "0.7", features = ["json"] }
-inactu-verifier = { git = "https://github.com/opertus-systems/inactu.git", tag = "v0.1.0", package = "inactu-verifier" }
+inactu-verifier = { git = "https://github.com/opertus-systems/inactu.git", rev = "6e9f8a9", package = "inactu-verifier" }
 jsonwebtoken = "9"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -21,9 +21,6 @@ tower-http = { version = "0.6", features = ["trace"] }
 [workspace]
 members = ["."]
 resolver = "2"
-
-[patch."https://github.com/opertus-systems/inactu.git"]
-inactu-verifier = { path = "../inactu/core/verifier" }
 
 [dev-dependencies]
 tower = "0.5"

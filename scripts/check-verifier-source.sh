@@ -14,14 +14,9 @@ if ! grep -Eq '^inactu-verifier\s*=\s*\{[^}]*git\s*=\s*"https://github.com/opert
   exit 1
 fi
 
-if ! grep -Eq '^\[patch\."https://github.com/opertus-systems/inactu.git"\]' "$CARGO_TOML"; then
-  echo "error: Cargo.toml must include a local [patch] override for ../inactu/core/verifier"
+if grep -Eq '^\[patch\."https://github.com/opertus-systems/inactu.git"\]' "$CARGO_TOML"; then
+  echo "error: Cargo.toml must not include local [patch] overrides for inactu-verifier in standalone mode"
   exit 1
 fi
 
-if ! grep -Eq '^inactu-verifier\s*=\s*\{\s*path\s*=\s*"\.\./inactu/core/verifier"\s*\}' "$CARGO_TOML"; then
-  echo "error: Cargo.toml [patch] section must point inactu-verifier to ../inactu/core/verifier"
-  exit 1
-fi
-
-echo "ok: verifier source-of-truth checks passed"
+echo "ok: verifier source-of-truth checks passed (standalone mode)"
