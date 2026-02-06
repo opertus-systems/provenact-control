@@ -24,7 +24,7 @@ path = "src/bin/inactu-control-web.rs"
 required-features = ["web"]
 
 [dependencies]
-axum = { version = "0.7", features = ["json"], optional = true }
+axum = { version = "0.8", features = ["json"], optional = true }
 inactu-verifier = { git = "https://github.com/opertus-systems/inactu.git", rev = "b45f54e", package = "inactu-verifier" }
 jsonwebtoken = { version = "10", optional = true }
 serde = { version = "1", features = ["derive"] }
