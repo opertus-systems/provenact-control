@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, str::FromStr};
+use std::{net::SocketAddr, path::Path as FsPath, str::FromStr};
 
 use axum::{
     extract::{Path, Query, State},
@@ -334,7 +334,8 @@ async fn init_postgres() -> Result<Option<PgPool>, Box<dyn std::error::Error>> {
         .connect(&database_url)
         .await?;
 
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    let migrator = sqlx::migrate::Migrator::new(FsPath::new("./migrations")).await?;
+    migrator.run(&pool).await?;
     info!("database connected and migrations applied");
     Ok(Some(pool))
 }
