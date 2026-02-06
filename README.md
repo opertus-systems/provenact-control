@@ -17,8 +17,11 @@ Standalone SaaS/control-plane scaffold for Inactu.
 ## Backend (Rust API)
 
 ```bash
-cargo run -p inactu-control
+cargo run -p inactu-control --features web --bin inactu-control-web
 ```
+
+Default `cargo build`/`cargo test` uses the non-web core baseline. The HTTP API
+is opt-in via the `web` feature.
 
 Optional environment variables:
 

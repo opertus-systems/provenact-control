@@ -22,3 +22,5 @@ substrate trust boundaries:
 - Run CI security checks on every push/PR.
 - Keep dependencies updated and audit findings triaged.
 - Treat auth/session/token handling as high-risk surfaces.
+- Keep the default audited build non-web; run HTTP API only with explicit
+  `web` feature enablement.

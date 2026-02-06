@@ -30,3 +30,6 @@ jobs:
 
       - name: Cargo check
         run: cargo check --locked
+
+      - name: Cargo check (web feature)
+        run: cargo check --locked --features web --bin inactu-control-web
