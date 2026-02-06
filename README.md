@@ -3,6 +3,7 @@
 Standalone SaaS/control-plane scaffold for Inactu.
 
 Ecosystem map: `inactu/docs/ecosystem.md` in the substrate repository.
+Verifier compatibility pin: `COMPATIBILITY.md`.
 
 ## Planning
 

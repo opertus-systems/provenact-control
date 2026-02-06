@@ -25,7 +25,7 @@ required-features = ["web"]
 
 [dependencies]
 axum = { version = "0.7", features = ["json"], optional = true }
-inactu-verifier = { git = "https://github.com/opertus-systems/inactu.git", rev = "6e9f8a9", package = "inactu-verifier" }
+inactu-verifier = { git = "https://github.com/opertus-systems/inactu.git", rev = "b45f54e", package = "inactu-verifier" }
 jsonwebtoken = { version = "9", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

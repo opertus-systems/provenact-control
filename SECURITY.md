@@ -26,3 +26,14 @@ substrate trust boundaries:
   `web` feature enablement.
 - Enforce bounded request rates and reject replayed bearer tokens (`jti`) on
   authenticated API paths.
+
+## RustSec Exception (Documented)
+
+`cargo audit` is configured via `.cargo/audit.toml` to ignore
+`RUSTSEC-2023-0071` (`rsa` via `sqlx-mysql`) because:
+- `inactu-control` uses PostgreSQL-only query/runtime paths.
+- CI enforces that the runtime dependency graph excludes `sqlx-mysql`.
+- No fixed upstream patch exists at time of writing.
+
+This exception must be removed once upstream dependencies no longer pull the
+advisory path.

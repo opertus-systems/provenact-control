@@ -20,6 +20,7 @@ Not allowed:
 - Keep changes small and reviewable.
 - Add tests for behavior changes.
 - Keep docs and OpenAPI examples aligned with code.
+- Keep `COMPATIBILITY.md` aligned with `Cargo.toml` verifier pin changes.
 - Run local gates before opening a PR:
 
 ```bash

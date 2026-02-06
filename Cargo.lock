@@ -780,8 +780,8 @@ dependencies = [
 
 [[package]]
 name = "inactu-verifier"
-version = "0.1.0"
-source = "git+https://github.com/opertus-systems/inactu.git?rev=6e9f8a9#6e9f8a9499454b0d5e249f0beeade13f67c05025"
+version = "0.2.0"
+source = "git+https://github.com/opertus-systems/inactu.git?rev=b45f54e#b45f54eaed1391bf88b9aadfc5083eda2bc3f0eb"
 dependencies = [
  "base64",
  "ed25519-dalek",

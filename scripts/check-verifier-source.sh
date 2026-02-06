@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CARGO_TOML="$ROOT_DIR/Cargo.toml"
+EXPECTED_REV="b45f54e"
 
 if [[ -d "$ROOT_DIR/crates/inactu-verifier" ]]; then
   echo "error: local crate 'crates/inactu-verifier' must not exist; use shared inactu verifier dependency"
@@ -11,6 +12,11 @@ fi
 
 if ! grep -Eq '^inactu-verifier\s*=\s*\{[^}]*git\s*=\s*"https://github.com/opertus-systems/inactu.git"[^}]*package\s*=\s*"inactu-verifier"' "$CARGO_TOML"; then
   echo "error: Cargo.toml must declare inactu-verifier from the shared inactu git source"
+  exit 1
+fi
+
+if ! grep -Eq "^inactu-verifier\\s*=\\s*\\{[^}]*rev\\s*=\\s*\"$EXPECTED_REV\"" "$CARGO_TOML"; then
+  echo "error: Cargo.toml must pin inactu-verifier rev to $EXPECTED_REV"
   exit 1
 fi
 

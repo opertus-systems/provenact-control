@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   rust-security:
     runs-on: ubuntu-latest
@@ -22,8 +25,16 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
+      - name: Ensure runtime graph excludes sqlx-mysql
+        shell: bash
+        run: |
+          if cargo tree --all-features -e normal | rg -q 'sqlx-mysql v'; then
+            echo "runtime dependency graph unexpectedly includes sqlx-mysql" >&2
+            exit 1
+          fi
+
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
 
       - name: Cargo audit
-        run: cargo audit --deny warnings --ignore RUSTSEC-2023-0071
+        run: cargo audit --deny warnings
