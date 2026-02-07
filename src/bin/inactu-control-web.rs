@@ -373,19 +373,19 @@ fn router(state: AppState) -> Router {
         .route("/v1/packages", get(list_packages).post(create_package))
         .route("/v1/contexts", get(list_contexts).post(create_context))
         .route(
-            "/v1/contexts/:context_id",
+            "/v1/contexts/{context_id}",
             get(get_context).patch(update_context),
         )
         .route(
-            "/v1/contexts/:context_id/logs",
+            "/v1/contexts/{context_id}/logs",
             get(list_context_logs).post(append_context_log),
         )
         .route(
-            "/v1/packages/:package/versions",
+            "/v1/packages/{package}/versions",
             get(list_package_versions).post(publish_package_version),
         )
         .route(
-            "/v1/packages/:package/versions/:version/deprecate",
+            "/v1/packages/{package}/versions/{version}/deprecate",
             post(deprecate_package_version),
         )
         .layer(
