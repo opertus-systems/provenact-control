@@ -21,8 +21,10 @@ Verifier compatibility pin: `COMPATIBILITY.md`.
 ## Backend (Rust API)
 
 ```bash
-cargo run -p inactu-control --features web --bin inactu-control-web
+cargo run -p inactu-control --features web --bin inactu-control-api
 ```
+
+Legacy compatibility alias remains available as `inactu-control-web`.
 
 Default `cargo build`/`cargo test` uses the non-web core baseline. The HTTP API
 is opt-in via the `web` feature.
@@ -35,6 +37,10 @@ Optional environment variables:
 - `INACTU_API_AUTH_SECRET` (shared secret for web-to-api bearer bridge)
 - `INACTU_MAX_REQUESTS_PER_MINUTE` (default: `120`, per-user sliding-window
   limit on authenticated endpoints)
+
+Auth replay and request-rate enforcement for authenticated endpoints is persisted
+in Postgres tables (`bridge_token_replays`, `api_request_events`) to remain
+effective in multi-instance deployments.
 
 This repo is pinned to Rust `1.88.0` via `rust-toolchain.toml`.
 
