@@ -1,10 +1,4 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    net::SocketAddr,
-    path::Path as FsPath,
-    str::FromStr,
-    sync::{Arc, Mutex},
-};
+use std::{net::SocketAddr, path::Path as FsPath, str::FromStr};
 
 use axum::{
     extract::{DefaultBodyLimit, Path, Query, State},
@@ -31,8 +25,6 @@ struct AppState {
     db_pool: Option<PgPool>,
     api_auth_secret: Option<String>,
     max_requests_per_minute: usize,
-    replay_cache: Arc<Mutex<HashMap<String, i64>>>,
-    request_windows: Arc<Mutex<HashMap<String, VecDeque<i64>>>>,
 }
 
 #[derive(Debug)]
@@ -324,8 +316,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .and_then(|raw| raw.parse::<usize>().ok())
             .filter(|value| *value > 0)
             .unwrap_or(120),
-        replay_cache: Arc::new(Mutex::new(HashMap::new())),
-        request_windows: Arc::new(Mutex::new(HashMap::new())),
     };
     let app = router(state.clone());
     let bind_addr = bind_address()?;
@@ -373,19 +363,19 @@ fn router(state: AppState) -> Router {
         .route("/v1/packages", get(list_packages).post(create_package))
         .route("/v1/contexts", get(list_contexts).post(create_context))
         .route(
-            "/v1/contexts/{context_id}",
+            "/v1/contexts/:context_id",
             get(get_context).patch(update_context),
         )
         .route(
-            "/v1/contexts/{context_id}/logs",
+            "/v1/contexts/:context_id/logs",
             get(list_context_logs).post(append_context_log),
         )
         .route(
-            "/v1/packages/{package}/versions",
+            "/v1/packages/:package/versions",
             get(list_package_versions).post(publish_package_version),
         )
         .route(
-            "/v1/packages/{package}/versions/{version}/deprecate",
+            "/v1/packages/:package/versions/:version/deprecate",
             post(deprecate_package_version),
         )
         .layer(
@@ -447,8 +437,8 @@ fn require_database(state: &AppState) -> Result<PgPool, ApiError> {
 
 async fn request_ctx(headers: &HeaderMap, state: &AppState) -> Result<RequestCtx, ApiError> {
     let pool = require_database(state)?;
-    let user_id = current_user_id(headers, state)?;
-    enforce_rate_limit(state, &user_id)?;
+    let user_id = current_user_id(headers, state, &pool).await?;
+    enforce_rate_limit(&pool, state, &user_id).await?;
     let owner_id = owner_id_for_user(&pool, &user_id).await?;
     Ok(RequestCtx {
         pool,
@@ -457,7 +447,11 @@ async fn request_ctx(headers: &HeaderMap, state: &AppState) -> Result<RequestCtx
     })
 }
 
-fn current_user_id(headers: &HeaderMap, state: &AppState) -> Result<String, ApiError> {
+async fn current_user_id(
+    headers: &HeaderMap,
+    state: &AppState,
+    pool: &PgPool,
+) -> Result<String, ApiError> {
     let secret = state
         .api_auth_secret
         .as_ref()
@@ -508,42 +502,72 @@ fn current_user_id(headers: &HeaderMap, state: &AppState) -> Result<String, ApiE
     if jti.trim().is_empty() {
         return Err(ApiError::unauthorized("invalid auth token id"));
     }
-    guard_replay(state, jti, exp)?;
+    guard_replay(pool, jti, exp).await?;
     let _ = claims.iss;
     let _ = claims.aud;
     Ok(claims.sub)
 }
 
-fn guard_replay(state: &AppState, jti: &str, exp: i64) -> Result<(), ApiError> {
-    let now = OffsetDateTime::now_utc().unix_timestamp();
-    let mut cache = state
-        .replay_cache
-        .lock()
-        .map_err(|_| ApiError::internal("failed to lock replay cache"))?;
-    cache.retain(|_, token_exp| *token_exp > now);
-    if cache.contains_key(jti) {
+async fn guard_replay(pool: &PgPool, jti: &str, exp: i64) -> Result<(), ApiError> {
+    sqlx::query("DELETE FROM bridge_token_replays WHERE exp_at <= now()")
+        .execute(pool)
+        .await
+        .map_err(|err| ApiError::internal(format!("failed replay cache cleanup: {err}")))?;
+
+    let inserted = sqlx::query(
+        "INSERT INTO bridge_token_replays (jti, exp_at)
+         VALUES ($1, to_timestamp($2::double precision))
+         ON CONFLICT (jti) DO NOTHING",
+    )
+    .bind(jti)
+    .bind(exp as f64)
+    .execute(pool)
+    .await
+    .map_err(|err| ApiError::internal(format!("failed replay token insert: {err}")))?;
+
+    if inserted.rows_affected() == 0 {
         return Err(ApiError::unauthorized("replayed auth token"));
     }
-    cache.insert(jti.to_string(), exp);
     Ok(())
 }
 
-fn enforce_rate_limit(state: &AppState, user_id: &str) -> Result<(), ApiError> {
-    let now = OffsetDateTime::now_utc().unix_timestamp();
-    let window_start = now - 60;
-    let mut windows = state
-        .request_windows
-        .lock()
-        .map_err(|_| ApiError::internal("failed to lock request windows"))?;
-    let user_window = windows.entry(user_id.to_string()).or_default();
-    while let Some(ts) = user_window.front() {
-        if *ts < window_start {
-            user_window.pop_front();
-        } else {
-            break;
-        }
-    }
-    if user_window.len() >= state.max_requests_per_minute {
+async fn enforce_rate_limit(
+    pool: &PgPool,
+    state: &AppState,
+    user_id: &str,
+) -> Result<(), ApiError> {
+    let mut tx = pool.begin().await.map_err(|err| {
+        ApiError::internal(format!("failed to begin rate-limit transaction: {err}"))
+    })?;
+
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|err| ApiError::internal(format!("failed to lock rate-limit key: {err}")))?;
+
+    sqlx::query(
+        "DELETE FROM api_request_events
+         WHERE user_id = $1::uuid
+           AND ts < now() - interval '1 minute'",
+    )
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|err| ApiError::internal(format!("failed to prune rate-limit window: {err}")))?;
+
+    let recent_count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*)
+         FROM api_request_events
+         WHERE user_id = $1::uuid
+           AND ts >= now() - interval '1 minute'",
+    )
+    .bind(user_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|err| ApiError::internal(format!("failed to read rate-limit window: {err}")))?;
+
+    if recent_count >= state.max_requests_per_minute as i64 {
         return Err(ApiError {
             status: StatusCode::TOO_MANY_REQUESTS,
             message: format!(
@@ -552,7 +576,15 @@ fn enforce_rate_limit(state: &AppState, user_id: &str) -> Result<(), ApiError> {
             ),
         });
     }
-    user_window.push_back(now);
+    sqlx::query("INSERT INTO api_request_events (user_id) VALUES ($1::uuid)")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|err| ApiError::internal(format!("failed to persist rate-limit event: {err}")))?;
+
+    tx.commit().await.map_err(|err| {
+        ApiError::internal(format!("failed to commit rate-limit transaction: {err}"))
+    })?;
     Ok(())
 }
 
