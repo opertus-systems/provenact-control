@@ -15,7 +15,8 @@ Verifier compatibility pin: `COMPATIBILITY.md`.
 - API surface for control-plane concerns.
 - Reuse of `inactu-verifier` for validation-heavy endpoints.
 - No changes to Inactu runtime trust boundaries.
-- Includes a Next.js frontend scaffold at `web`.
+- Web console now lives in `inactu-control-web`:
+  https://github.com/opertus-systems/inactu-control-web
 
 ## Backend (Rust API)
 
@@ -39,18 +40,13 @@ This repo is pinned to Rust `1.88.0` via `rust-toolchain.toml`.
 
 On startup, if `DATABASE_URL` is set, the API connects to Postgres and applies SQL migrations from `migrations/`.
 
-## Frontend (Next.js)
+## Web Console
 
-```bash
-cd web
-npm install
-npm run dev
-```
+The standalone Next.js web console is maintained in:
 
-Set `NEXT_PUBLIC_INACTU_API_BASE_URL` in `web/.env.local`.
-For auth flows, also set `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, and `DATABASE_URL` in `web/.env.local`.
+- `https://github.com/opertus-systems/inactu-control-web`
 
-Vercel deployment: use `web` as the project root.
+This repository now contains only the Rust API/control-plane service.
 
 ## Run with Docker
 

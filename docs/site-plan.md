@@ -61,7 +61,7 @@ This plan is scoped for single-user ownership first, with org support designed i
 
 ## System Architecture
 
-### Frontend (`web/`)
+### Frontend (`inactu-control-web` repo)
 - Next.js app-router UI.
 - Auth pages: signup/login/reset/verify.
 - App sections: Packages, Package Detail, Publish, Contexts, Context Detail.
@@ -175,7 +175,7 @@ This plan is scoped for single-user ownership first, with org support designed i
 ### Phase 1: Foundation (1-2 weeks)
 - Add DB migrations + Postgres integration.
 - Implement auth service and session middleware.
-- Add protected `/v1/auth/me` and basic frontend auth pages.
+- Add protected `/v1/auth/me` and basic frontend auth pages in `inactu-control-web`.
 
 Exit criteria:
 - User can sign up, log in, and access an authenticated dashboard.
@@ -215,4 +215,4 @@ Exit criteria:
 1. Add `docs/adr/` and write ADRs for auth mode, storage choice, and owner model.
 2. Add database migration tooling (e.g., `sqlx`/`sea-orm` migrations) and first schema migration.
 3. Extend `openapi.yaml` with auth and packages endpoints (start with `auth/me`, `packages list/create`).
-4. Create `web/app/(app)/packages` and `web/app/(app)/contexts` routes behind auth checks.
+4. Create `/app/packages` and `/app/contexts` routes behind auth checks in `inactu-control-web`.
