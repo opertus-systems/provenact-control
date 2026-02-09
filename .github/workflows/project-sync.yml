@@ -18,7 +18,7 @@ jobs:
       - name: Sync issue/PR into org project and fields
         uses: actions/github-script@v8
         with:
-          github-token: ${{ secrets.PROVENACT_PROJECT_TOKEN }}
+          github-token: ${{ secrets.PROVENACT_PROJECT_TOKEN || github.token }}
           script: |
             const eventName = context.eventName;
             const action = context.payload.action;
