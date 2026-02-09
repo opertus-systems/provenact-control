@@ -34,7 +34,7 @@ Optional environment variables:
 - `PROVENACT_CONTROL_BIND` (default: `127.0.0.1:8080`)
 - `RUST_LOG` (default: `info`)
 - `DATABASE_URL` (Postgres/Neon connection URL)
-- `PROVENACT_API_AUTH_SECRET` (shared secret for web-to-api bearer bridge)
+- `PROVENACT_API_AUTH_SECRET` (shared secret for web-to-api bearer bridge, at least 32 bytes)
 - `PROVENACT_MAX_REQUESTS_PER_MINUTE` (default: `120`, per-user sliding-window
   limit on authenticated endpoints)
 
@@ -42,7 +42,7 @@ Auth replay and request-rate enforcement for authenticated endpoints is persiste
 in Postgres tables (`bridge_token_replays`, `api_request_events`) to remain
 effective in multi-instance deployments.
 
-This repo is pinned to Rust `1.88.0` via `rust-toolchain.toml`.
+This repo is pinned to Rust `1.90.0` via `rust-toolchain.toml`.
 
 On startup, if `DATABASE_URL` is set, the API connects to Postgres and applies SQL migrations from `migrations/`.
 

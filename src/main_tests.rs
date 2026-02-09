@@ -425,3 +425,18 @@ fn auth_limit_guards_are_database_backed() {
     // Behavioral assertions belong to integration tests with a real database.
     assert!(std::mem::size_of::<AppState>() > 0);
 }
+
+#[test]
+fn validate_api_auth_secret_rejects_short_values() {
+    let result = validate_api_auth_secret("too-short");
+    assert!(result.is_err());
+}
+
+#[test]
+fn validate_api_auth_secret_accepts_long_values() {
+    let result = validate_api_auth_secret("0123456789abcdef0123456789abcdef");
+    assert_eq!(
+        result.expect("expected valid secret"),
+        "0123456789abcdef0123456789abcdef"
+    );
+}
