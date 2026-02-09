@@ -1,7 +1,7 @@
-# Inactu Control Site Plan
+# Provenact Control Site Plan
 
 ## Objective
-Build `inactu-control` into a multi-tenant control plane where users can:
+Build `provenact-control` into a multi-tenant control plane where users can:
 - Sign up and log in.
 - Publish and update packages in a repository.
 - Manage package visibility (private by default).
@@ -61,13 +61,13 @@ This plan is scoped for single-user ownership first, with org support designed i
 
 ## System Architecture
 
-### Frontend (`inactu-control-web` repo)
+### Frontend (`provenact-control-web` repo)
 - Next.js app-router UI.
 - Auth pages: signup/login/reset/verify.
 - App sections: Packages, Package Detail, Publish, Contexts, Context Detail.
 - Session-aware API client (http-only cookie session preferred).
 
-### Backend (`src/bin/inactu-control-web.rs` + modules)
+### Backend (`src/bin/provenact-control-web.rs` + modules)
 - Rust API for auth, package registry, and context/log APIs.
 - Reuse existing verifier endpoints in package publish pipeline.
 - Introduce service modules:
@@ -175,7 +175,7 @@ This plan is scoped for single-user ownership first, with org support designed i
 ### Phase 1: Foundation (1-2 weeks)
 - Add DB migrations + Postgres integration.
 - Implement auth service and session middleware.
-- Add protected `/v1/auth/me` and basic frontend auth pages in `inactu-control-web`.
+- Add protected `/v1/auth/me` and basic frontend auth pages in `provenact-control-web`.
 
 Exit criteria:
 - User can sign up, log in, and access an authenticated dashboard.
@@ -215,4 +215,4 @@ Exit criteria:
 1. Add `docs/adr/` and write ADRs for auth mode, storage choice, and owner model.
 2. Add database migration tooling (e.g., `sqlx`/`sea-orm` migrations) and first schema migration.
 3. Extend `openapi.yaml` with auth and packages endpoints (start with `auth/me`, `packages list/create`).
-4. Create `/app/packages` and `/app/contexts` routes behind auth checks in `inactu-control-web`.
+4. Create `/app/packages` and `/app/contexts` routes behind auth checks in `provenact-control-web`.

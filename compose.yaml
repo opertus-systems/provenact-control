@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: inactu_control
+      POSTGRES_DB: provenact_control
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
@@ -10,14 +10,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  inactu-control:
+  provenact-control:
     build:
       context: .
       dockerfile: Dockerfile
     environment:
-      INACTU_CONTROL_BIND: 0.0.0.0:8080
+      PROVENACT_CONTROL_BIND: 0.0.0.0:8080
       RUST_LOG: info
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/inactu_control
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/provenact_control
     depends_on:
       - postgres
     ports:

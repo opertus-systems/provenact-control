@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-`inactu-control` needs durable relational storage for users, sessions, package metadata, package versions, running contexts, and log indexing. The system also needs an easy managed option for production and a compatible local developer workflow.
+`provenact-control` needs durable relational storage for users, sessions, package metadata, package versions, running contexts, and log indexing. The system also needs an easy managed option for production and a compatible local developer workflow.
 
 ## Decision
 - Use PostgreSQL as the system of record.

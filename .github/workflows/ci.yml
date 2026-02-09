@@ -32,4 +32,4 @@ jobs:
         run: cargo test --locked
 
       - name: Test (web feature)
-        run: cargo test --locked --features web --bin inactu-control-web
+        run: cargo test --locked --features web --bin provenact-control-web

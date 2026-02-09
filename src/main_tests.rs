@@ -4,11 +4,11 @@ use tower::ServiceExt;
 
 fn test_state_with_database() -> AppState {
     let pool = PgPoolOptions::new()
-        .connect_lazy("postgres://postgres:postgres@127.0.0.1:5432/inactu_control")
+        .connect_lazy("postgres://postgres:postgres@127.0.0.1:5432/provenact_control")
         .expect("connect_lazy should accept a valid postgres url");
 
     AppState {
-        service_name: "inactu-control",
+        service_name: "provenact-control",
         service_version: "test",
         database_enabled: true,
         db_pool: Some(pool),
@@ -19,7 +19,7 @@ fn test_state_with_database() -> AppState {
 
 fn test_state_without_database() -> AppState {
     AppState {
-        service_name: "inactu-control",
+        service_name: "provenact-control",
         service_version: "test",
         database_enabled: false,
         db_pool: None,
@@ -160,7 +160,7 @@ async fn verify_receipt_accepts_v1_draft() {
                     .uri("/v1/verify/receipt")
                     .header("content-type", "application/json")
                     .body(Body::from(
-                        r#"{"receipt":{"schema_version":"1.0.0-draft","artifact":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","manifest_hash":"sha256:1111111111111111111111111111111111111111111111111111111111111111","policy_hash":"sha256:2222222222222222222222222222222222222222222222222222222222222222","bundle_hash":"sha256:abababababababababababababababababababababababababababababababab","inputs_hash":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","outputs_hash":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","runtime_version_digest":"sha256:1212121212121212121212121212121212121212121212121212121212121212","result_digest":"sha256:3434343434343434343434343434343434343434343434343434343434343434","caps_requested":["env:HOME"],"caps_granted":["env:HOME"],"caps_used":["env:HOME"],"result":{"status":"success","code":"ok"},"runtime":{"name":"inactu","version":"0.1.0","profile":"v1-draft"},"started_at":1738600000,"finished_at":1738600999,"timestamp_strategy":"local_untrusted_unix_seconds","receipt_hash":"sha256:3333333333333333333333333333333333333333333333333333333333333333"}}"#
+                        r#"{"receipt":{"schema_version":"1.0.0-draft","artifact":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","manifest_hash":"sha256:1111111111111111111111111111111111111111111111111111111111111111","policy_hash":"sha256:2222222222222222222222222222222222222222222222222222222222222222","bundle_hash":"sha256:abababababababababababababababababababababababababababababababab","inputs_hash":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","outputs_hash":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","runtime_version_digest":"sha256:1212121212121212121212121212121212121212121212121212121212121212","result_digest":"sha256:3434343434343434343434343434343434343434343434343434343434343434","caps_requested":["env:HOME"],"caps_granted":["env:HOME"],"caps_used":["env:HOME"],"result":{"status":"success","code":"ok"},"runtime":{"name":"provenact","version":"0.1.0","profile":"v1-draft"},"started_at":1738600000,"finished_at":1738600999,"timestamp_strategy":"local_untrusted_unix_seconds","receipt_hash":"sha256:3333333333333333333333333333333333333333333333333333333333333333"}}"#
                             .to_string(),
                     ))
                     .expect("request should build"),
@@ -424,4 +424,19 @@ fn auth_limit_guards_are_database_backed() {
     // Replay and rate-limit tracking moved to Postgres for multi-instance safety.
     // Behavioral assertions belong to integration tests with a real database.
     assert!(std::mem::size_of::<AppState>() > 0);
+}
+
+#[test]
+fn validate_api_auth_secret_rejects_short_values() {
+    let result = validate_api_auth_secret("too-short");
+    assert!(result.is_err());
+}
+
+#[test]
+fn validate_api_auth_secret_accepts_long_values() {
+    let result = validate_api_auth_secret("0123456789abcdef0123456789abcdef");
+    assert_eq!(
+        result.expect("expected valid secret"),
+        "0123456789abcdef0123456789abcdef"
+    );
 }

@@ -1,0 +1,76 @@
+name: Security work
+description: Security issue/task with explicit controls and review gates.
+title: "[Security]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for security fixes, hardening, and investigations. Type should remain security.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - control
+        - control-web
+        - cli
+        - sdk
+        - agent-kit
+        - skills
+        - infra
+        - docs
+    validations:
+      required: true
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options:
+        - security
+        - bug
+        - feature
+        - chore
+        - docs
+        - research
+      default: 0
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk
+      options:
+        - high
+        - med
+        - low
+      default: 0
+    validations:
+      required: true
+  - type: textarea
+    id: affected_surface
+    attributes:
+      label: Affected surface
+      description: Components, trust boundaries, and data/assets in scope.
+    validations:
+      required: true
+  - type: textarea
+    id: threat_and_impact
+    attributes:
+      label: Threat and impact
+      description: Abuse path, attacker capability, and blast radius.
+    validations:
+      required: true
+  - type: textarea
+    id: definition_of_done
+    attributes:
+      label: Definition of done
+      description: Concrete criteria for completion.
+    validations:
+      required: true
+  - type: textarea
+    id: security_considerations
+    attributes:
+      label: Security considerations
+      description: Required. Include mitigations and verification artifacts.
+    validations:
+      required: true

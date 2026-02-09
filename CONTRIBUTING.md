@@ -2,7 +2,7 @@
 
 ## Scope Guardrails
 
-`inactu-control` is a control-plane service. Changes must not weaken Inactu
+`provenact-control` is a control-plane service. Changes must not weaken Provenact
 substrate trust boundaries.
 
 Allowed:
@@ -27,9 +27,13 @@ Not allowed:
 cargo fmt --all --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --locked
-cargo test --locked --features web --bin inactu-control-web
+cargo test --locked --features web --bin provenact-control-web
 ```
 
 ## Security Reporting
 
 See `SECURITY.md` for coordinated vulnerability disclosure.
+
+## Work item labeling
+
+All work must have `area:*`, `type:*`, and `risk:*` labels so it is triaged and synced into the org project.

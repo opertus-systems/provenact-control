@@ -1,1 +1,13 @@
 * @markthom-as
+
+# BEGIN PROVENACT-SENSITIVE-OWNERS
+**/crypto/** @opertus-systems/core
+**/signing/** @opertus-systems/core
+**/sandbox/** @opertus-systems/core
+**/exec/** @opertus-systems/core
+**/auth/** @opertus-systems/core
+**/permission*/** @opertus-systems/core
+**/policy/** @opertus-systems/core
+**/update*/** @opertus-systems/core
+**/*provenance*/** @opertus-systems/core
+# END PROVENACT-SENSITIVE-OWNERS

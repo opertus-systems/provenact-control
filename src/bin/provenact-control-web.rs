@@ -7,9 +7,9 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use inactu_control::{hash_payload_sha256, verify_manifest_value, verify_receipt_value};
-use inactu_verifier::parse_manifest_json;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+use provenact_control::{hash_payload_sha256, verify_manifest_value, verify_receipt_value};
+use provenact_verifier::parse_manifest_json;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
@@ -26,6 +26,8 @@ struct AppState {
     api_auth_secret: Option<String>,
     max_requests_per_minute: usize,
 }
+
+const MIN_API_AUTH_SECRET_BYTES: usize = 32;
 
 #[derive(Debug)]
 struct RequestCtx {
@@ -306,12 +308,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let pool = init_postgres().await?;
     let state = AppState {
-        service_name: "inactu-control",
+        service_name: "provenact-control",
         service_version: env!("CARGO_PKG_VERSION"),
         database_enabled: pool.is_some(),
         db_pool: pool,
-        api_auth_secret: std::env::var("INACTU_API_AUTH_SECRET").ok(),
-        max_requests_per_minute: std::env::var("INACTU_MAX_REQUESTS_PER_MINUTE")
+        api_auth_secret: load_api_auth_secret()?,
+        max_requests_per_minute: std::env::var("PROVENACT_MAX_REQUESTS_PER_MINUTE")
             .ok()
             .and_then(|raw| raw.parse::<usize>().ok())
             .filter(|value| *value > 0)
@@ -333,8 +335,32 @@ fn init_tracing() {
 }
 
 fn bind_address() -> Result<SocketAddr, Box<dyn std::error::Error>> {
-    let value = std::env::var("INACTU_CONTROL_BIND").unwrap_or_else(|_| "127.0.0.1:8080".into());
-    SocketAddr::from_str(&value).map_err(|err| format!("invalid INACTU_CONTROL_BIND: {err}").into())
+    let value = std::env::var("PROVENACT_CONTROL_BIND").unwrap_or_else(|_| "127.0.0.1:8080".into());
+    SocketAddr::from_str(&value)
+        .map_err(|err| format!("invalid PROVENACT_CONTROL_BIND: {err}").into())
+}
+
+fn load_api_auth_secret() -> Result<Option<String>, Box<dyn std::error::Error>> {
+    match std::env::var("PROVENACT_API_AUTH_SECRET") {
+        Ok(raw) => validate_api_auth_secret(&raw)
+            .map(Some)
+            .map_err(|err| format!("invalid PROVENACT_API_AUTH_SECRET: {err}").into()),
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(err) => Err(format!("failed to read PROVENACT_API_AUTH_SECRET: {err}").into()),
+    }
+}
+
+fn validate_api_auth_secret(raw: &str) -> Result<String, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("value must not be empty".to_string());
+    }
+    if trimmed.len() < MIN_API_AUTH_SECRET_BYTES {
+        return Err(format!(
+            "value must be at least {MIN_API_AUTH_SECRET_BYTES} bytes"
+        ));
+    }
+    Ok(trimmed.to_string())
 }
 
 async fn init_postgres() -> Result<Option<PgPool>, Box<dyn std::error::Error>> {
@@ -467,8 +493,8 @@ async fn current_user_id(
         .ok_or_else(|| ApiError::unauthorized("authorization must be a bearer token"))?;
 
     let mut validation = Validation::new(Algorithm::HS256);
-    validation.set_audience(&["inactu-control"]);
-    validation.set_issuer(&["inactu-web"]);
+    validation.set_audience(&["provenact-control"]);
+    validation.set_issuer(&["provenact-web"]);
     let decoded = decode::<BridgeTokenClaims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),

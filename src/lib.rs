@@ -1,4 +1,4 @@
-use inactu_verifier::{
+use provenact_verifier::{
     enforce_capability_ceiling, parse_manifest_json, parse_manifest_v1_draft_json,
     parse_policy_document, parse_receipt_json, parse_receipt_v1_draft_json, sha256_prefixed,
     verify_receipt_hash,
