@@ -355,7 +355,7 @@ fn validate_api_auth_secret(raw: &str) -> Result<String, String> {
     if trimmed.is_empty() {
         return Err("value must not be empty".to_string());
     }
-    if trimmed.as_bytes().len() < MIN_API_AUTH_SECRET_BYTES {
+    if trimmed.len() < MIN_API_AUTH_SECRET_BYTES {
         return Err(format!(
             "value must be at least {MIN_API_AUTH_SECRET_BYTES} bytes"
         ));
