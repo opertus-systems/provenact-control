@@ -1,8 +1,8 @@
-# inactu-control
+# provenact-control
 
-Standalone SaaS/control-plane scaffold for Inactu.
+Standalone SaaS/control-plane scaffold for Provenact.
 
-Ecosystem map: `inactu/docs/ecosystem.md` in the substrate repository.
+Ecosystem map: `provenact/docs/ecosystem.md` in the substrate repository.
 Verifier compatibility pin: `COMPATIBILITY.md`.
 
 ## Planning
@@ -13,29 +13,29 @@ Verifier compatibility pin: `COMPATIBILITY.md`.
 ## Scope
 
 - API surface for control-plane concerns.
-- Reuse of `inactu-verifier` for validation-heavy endpoints.
-- No changes to Inactu runtime trust boundaries.
-- Web console now lives in `inactu-control-web`:
-  https://github.com/opertus-systems/inactu-control-web
+- Reuse of `provenact-verifier` for validation-heavy endpoints.
+- No changes to Provenact runtime trust boundaries.
+- Web console now lives in `provenact-control-web`:
+  https://github.com/opertus-systems/provenact-control-web
 
 ## Backend (Rust API)
 
 ```bash
-cargo run -p inactu-control --features web --bin inactu-control-api
+cargo run -p provenact-control --features web --bin provenact-control-api
 ```
 
-Legacy compatibility alias remains available as `inactu-control-web`.
+Legacy compatibility alias remains available as `provenact-control-web`.
 
 Default `cargo build`/`cargo test` uses the non-web core baseline. The HTTP API
 is opt-in via the `web` feature.
 
 Optional environment variables:
 
-- `INACTU_CONTROL_BIND` (default: `127.0.0.1:8080`)
+- `PROVENACT_CONTROL_BIND` (default: `127.0.0.1:8080`)
 - `RUST_LOG` (default: `info`)
 - `DATABASE_URL` (Postgres/Neon connection URL)
-- `INACTU_API_AUTH_SECRET` (shared secret for web-to-api bearer bridge)
-- `INACTU_MAX_REQUESTS_PER_MINUTE` (default: `120`, per-user sliding-window
+- `PROVENACT_API_AUTH_SECRET` (shared secret for web-to-api bearer bridge)
+- `PROVENACT_MAX_REQUESTS_PER_MINUTE` (default: `120`, per-user sliding-window
   limit on authenticated endpoints)
 
 Auth replay and request-rate enforcement for authenticated endpoints is persisted
@@ -50,7 +50,7 @@ On startup, if `DATABASE_URL` is set, the API connects to Postgres and applies S
 
 The standalone Next.js web console is maintained in:
 
-- `https://github.com/opertus-systems/inactu-control-web`
+- `https://github.com/opertus-systems/provenact-control-web`
 
 This repository now contains only the Rust API/control-plane service.
 
@@ -119,19 +119,19 @@ curl -s -X POST http://localhost:8080/v1/verify/receipt \
   --data @examples/verify-receipt-request-v1.json
 ```
 
-Context/logs API examples (requires `INACTU_API_AUTH_SECRET`-signed bearer token):
+Context/logs API examples (requires `PROVENACT_API_AUTH_SECRET`-signed bearer token):
 
 ```bash
 curl -s -X POST http://localhost:8080/v1/contexts \
-  -H "authorization: Bearer $INACTU_BRIDGE_TOKEN" \
+  -H "authorization: Bearer $PROVENACT_BRIDGE_TOKEN" \
   -H 'content-type: application/json' \
   --data '{"status":"running","region":"local-dev"}'
 
 curl -s -X POST http://localhost:8080/v1/contexts/<context_id>/logs \
-  -H "authorization: Bearer $INACTU_BRIDGE_TOKEN" \
+  -H "authorization: Bearer $PROVENACT_BRIDGE_TOKEN" \
   -H 'content-type: application/json' \
   --data '{"severity":"info","message":"context started"}'
 
 curl -s "http://localhost:8080/v1/contexts/<context_id>/logs?severity=info&from=2026-02-06T00:00:00Z&to=2026-02-06T23:59:59Z" \
-  -H "authorization: Bearer $INACTU_BRIDGE_TOKEN"
+  -H "authorization: Bearer $PROVENACT_BRIDGE_TOKEN"
 ```

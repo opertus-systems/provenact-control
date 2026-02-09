@@ -1,0 +1,165 @@
+name: Provenact Project Sync
+
+on:
+  issues:
+    types: [opened, reopened, closed, assigned, labeled, unlabeled]
+  pull_request:
+    types: [opened, reopened, closed, ready_for_review, converted_to_draft, labeled, unlabeled]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync issue/PR into org project and fields
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.PROVENACT_PROJECT_TOKEN }}
+          script: |
+            const eventName = context.eventName;
+            const action = context.payload.action;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const projectId = process.env.PROVENACT_PROJECT_ID;
+
+            if (!projectId) {
+              core.setFailed("Missing PROVENACT_PROJECT_ID repository variable.");
+              return;
+            }
+
+            const isPR = eventName === "pull_request";
+            const obj = isPR ? context.payload.pull_request : context.payload.issue;
+            const contentId = obj.node_id;
+            const closed = !!obj.closed_at;
+            const merged = isPR ? !!obj.merged_at : false;
+            const labels = (obj.labels || []).map(l => l.name);
+
+            const hasAreaOrType = labels.some(l => l.startsWith("area:")) || labels.some(l => l.startsWith("type:"));
+
+            const q = `
+              query($id:ID!) {
+                node(id:$id) {
+                  ... on Issue {
+                    id
+                    projectItems(first:50) { nodes { id project { id } } }
+                  }
+                  ... on PullRequest {
+                    id
+                    projectItems(first:50) { nodes { id project { id } } }
+                  }
+                }
+              }
+            `;
+
+            const content = await github.graphql(q, { id: contentId });
+            const node = content.node;
+            const existing = node.projectItems.nodes.find(n => n.project.id === projectId);
+
+            let itemId = existing?.id;
+            if (!itemId && hasAreaOrType) {
+              const add = await github.graphql(`
+                mutation($project:ID!, $content:ID!) {
+                  addProjectV2ItemById(input:{projectId:$project, contentId:$content}) { item { id } }
+                }
+              `, { project: projectId, content: contentId });
+              itemId = add.addProjectV2ItemById.item.id;
+            }
+
+            if (!itemId) {
+              core.info("Item is not in project and does not meet auto-add label condition.");
+              return;
+            }
+
+            const fieldsResp = await github.graphql(`
+              query($project:ID!) {
+                node(id:$project) {
+                  ... on ProjectV2 {
+                    fields(first:100) {
+                      nodes {
+                        ... on ProjectV2FieldCommon { id name }
+                        ... on ProjectV2SingleSelectField {
+                          id
+                          name
+                          options { id name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, { project: projectId });
+
+            const fields = fieldsResp.node.fields.nodes;
+            const byName = Object.fromEntries(fields.map(f => [f.name, f]));
+
+            const statusField = byName["Status"];
+            const areaField = byName["Area"];
+            const riskField = byName["Risk"];
+            const gateField = byName["Security gate"];
+
+            function optionId(field, optionName) {
+              if (!field?.options) return null;
+              const opt = field.options.find(o => o.name.toLowerCase() === optionName.toLowerCase());
+              return opt?.id || null;
+            }
+
+            const areaLabel = labels.find(l => l.startsWith("area:"));
+            const riskLabel = labels.find(l => l.startsWith("risk:"));
+            const typeSecurity = labels.includes("type:security");
+            const blocked = labels.includes("status:blocked");
+
+            let status = null;
+            if (closed || merged) {
+              status = "Done";
+            } else if (blocked) {
+              status = "Blocked";
+            } else if (isPR) {
+              if (action === "converted_to_draft") status = "In progress";
+              else status = "Review";
+            } else {
+              if (action === "assigned") status = "Ready";
+              else status = "Backlog";
+            }
+
+            const updates = [];
+            if (statusField && status) {
+              const id = optionId(statusField, status);
+              if (id) updates.push({ fieldId: statusField.id, value: { singleSelectOptionId: id }, label: `Status=${status}` });
+            }
+
+            if (areaField && areaLabel) {
+              const area = areaLabel.split(":", 2)[1];
+              const id = optionId(areaField, area);
+              if (id) updates.push({ fieldId: areaField.id, value: { singleSelectOptionId: id }, label: `Area=${area}` });
+            }
+
+            if (riskField && riskLabel) {
+              const risk = riskLabel.split(":", 2)[1];
+              const id = optionId(riskField, risk);
+              if (id) updates.push({ fieldId: riskField.id, value: { singleSelectOptionId: id }, label: `Risk=${risk}` });
+            }
+
+            if (gateField) {
+              let gate = null;
+              if (typeSecurity) gate = "threat model";
+              else if (riskLabel === "risk:high") gate = "design review";
+              if (gate) {
+                const id = optionId(gateField, gate);
+                if (id) updates.push({ fieldId: gateField.id, value: { singleSelectOptionId: id }, label: `Security gate=${gate}` });
+              }
+            }
+
+            for (const u of updates) {
+              await github.graphql(`
+                mutation($project:ID!, $item:ID!, $field:ID!, $value:ProjectV2FieldValue!) {
+                  updateProjectV2ItemFieldValue(input:{projectId:$project,itemId:$item,fieldId:$field,value:$value}) {
+                    projectV2Item { id }
+                  }
+                }
+              `, { project: projectId, item: itemId, field: u.fieldId, value: u.value });
+              core.info(`Updated ${u.label}`);
+            }

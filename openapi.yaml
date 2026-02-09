@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: Inactu Control API
+  title: Provenact Control API
   version: 0.1.0
-  description: Temporary control-plane API scaffold for Inactu.
+  description: Temporary control-plane API scaffold for Provenact.
 servers:
   - url: http://localhost:8080
 paths:
@@ -594,7 +594,7 @@ components:
           example: ok
         service:
           type: string
-          example: inactu-control
+          example: provenact-control
         version:
           type: string
           example: 0.1.0

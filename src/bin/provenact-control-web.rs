@@ -7,8 +7,8 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use inactu_control::{hash_payload_sha256, verify_manifest_value, verify_receipt_value};
-use inactu_verifier::parse_manifest_json;
+use provenact_control::{hash_payload_sha256, verify_manifest_value, verify_receipt_value};
+use provenact_verifier::parse_manifest_json;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -306,12 +306,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let pool = init_postgres().await?;
     let state = AppState {
-        service_name: "inactu-control",
+        service_name: "provenact-control",
         service_version: env!("CARGO_PKG_VERSION"),
         database_enabled: pool.is_some(),
         db_pool: pool,
-        api_auth_secret: std::env::var("INACTU_API_AUTH_SECRET").ok(),
-        max_requests_per_minute: std::env::var("INACTU_MAX_REQUESTS_PER_MINUTE")
+        api_auth_secret: std::env::var("PROVENACT_API_AUTH_SECRET").ok(),
+        max_requests_per_minute: std::env::var("PROVENACT_MAX_REQUESTS_PER_MINUTE")
             .ok()
             .and_then(|raw| raw.parse::<usize>().ok())
             .filter(|value| *value > 0)
@@ -333,8 +333,8 @@ fn init_tracing() {
 }
 
 fn bind_address() -> Result<SocketAddr, Box<dyn std::error::Error>> {
-    let value = std::env::var("INACTU_CONTROL_BIND").unwrap_or_else(|_| "127.0.0.1:8080".into());
-    SocketAddr::from_str(&value).map_err(|err| format!("invalid INACTU_CONTROL_BIND: {err}").into())
+    let value = std::env::var("PROVENACT_CONTROL_BIND").unwrap_or_else(|_| "127.0.0.1:8080".into());
+    SocketAddr::from_str(&value).map_err(|err| format!("invalid PROVENACT_CONTROL_BIND: {err}").into())
 }
 
 async fn init_postgres() -> Result<Option<PgPool>, Box<dyn std::error::Error>> {
@@ -467,8 +467,8 @@ async fn current_user_id(
         .ok_or_else(|| ApiError::unauthorized("authorization must be a bearer token"))?;
 
     let mut validation = Validation::new(Algorithm::HS256);
-    validation.set_audience(&["inactu-control"]);
-    validation.set_issuer(&["inactu-web"]);
+    validation.set_audience(&["provenact-control"]);
+    validation.set_issuer(&["provenact-web"]);
     let decoded = decode::<BridgeTokenClaims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),

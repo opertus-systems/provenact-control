@@ -35,4 +35,4 @@ jobs:
         run: cargo check --locked
 
       - name: Cargo check (web feature)
-        run: cargo check --locked --features web --bin inactu-control-web
+        run: cargo check --locked --features web --bin provenact-control-web

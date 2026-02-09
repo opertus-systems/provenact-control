@@ -11,7 +11,7 @@ Include:
 
 ## Scope
 
-`inactu-control` is a control-plane/service layer. It must not weaken Inactu
+`provenact-control` is a control-plane/service layer. It must not weaken Provenact
 substrate trust boundaries:
 - no capability elevation beyond substrate policy
 - no bypass of manifest/signature/receipt verification semantics
@@ -31,7 +31,7 @@ substrate trust boundaries:
 
 `cargo audit` is configured via `.cargo/audit.toml` to ignore
 `RUSTSEC-2023-0071` (`rsa` via `sqlx-mysql`) because:
-- `inactu-control` uses PostgreSQL-only query/runtime paths.
+- `provenact-control` uses PostgreSQL-only query/runtime paths.
 - CI enforces that the runtime dependency graph excludes `sqlx-mysql`.
 - No fixed upstream patch exists at time of writing.
 

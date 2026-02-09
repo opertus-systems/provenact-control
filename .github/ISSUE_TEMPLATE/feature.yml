@@ -1,0 +1,77 @@
+name: Feature request
+description: Propose a feature with required planning metadata.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for new functionality. Area, Type, and Risk are required and will be synced to labels.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - control
+        - control-web
+        - cli
+        - sdk
+        - agent-kit
+        - skills
+        - infra
+        - docs
+    validations:
+      required: true
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options:
+        - feature
+        - bug
+        - chore
+        - security
+        - docs
+        - research
+      default: 0
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk
+      description: Use high for sandboxing, signing, update chain, auth, permissions, secrets, or supply chain.
+      options:
+        - low
+        - med
+        - high
+      default: 1
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user or system problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: definition_of_done
+    attributes:
+      label: Definition of done
+      description: Concrete criteria for completion.
+    validations:
+      required: true
+  - type: textarea
+    id: security_considerations
+    attributes:
+      label: Security considerations
+      description: Required detail when risk is med/high.
+      placeholder: Threats, blast radius, controls, and validation plan.
+    validations:
+      required: true

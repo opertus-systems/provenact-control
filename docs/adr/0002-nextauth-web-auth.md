@@ -23,6 +23,6 @@ The web app needs reliable signup/login/session handling with minimal custom aut
 - Initial implementation should start with credentials/email flow; additional providers can be added later.
 
 ## Follow-up
-- Implement `/api/auth/[...nextauth]` route and auth config in `inactu-control-web`.
+- Implement `/api/auth/[...nextauth]` route and auth config in `provenact-control-web`.
 - Define how Rust API authorizes requests originating from NextAuth sessions.
 - Add integration tests for login/session lifecycle.

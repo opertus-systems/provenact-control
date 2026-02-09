@@ -27,7 +27,7 @@
       "fs": {
         "read": [
           "/data",
-          "/opt/inactu/public"
+          "/opt/provenact/public"
         ],
         "write": [
           "/tmp"
