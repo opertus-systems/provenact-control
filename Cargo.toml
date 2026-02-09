@@ -25,7 +25,7 @@ required-features = ["web"]
 
 [[bin]]
 name = "provenact-control-api"
-path = "src/bin/provenact-control-web.rs"
+path = "src/bin/provenact-control-api.rs"
 required-features = ["web"]
 
 [dependencies]
