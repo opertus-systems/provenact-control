@@ -1,5 +1,7 @@
 use super::*;
 use axum::{body::Body, http::Request};
+use provenact_verifier::{compute_receipt_v1_draft_hash, parse_receipt_v1_draft_json};
+use serde_json::json;
 use tower::ServiceExt;
 
 fn test_state_with_database() -> AppState {
@@ -152,6 +154,58 @@ async fn verify_receipt_accepts_v0() {
 
 #[tokio::test]
 async fn verify_receipt_accepts_v1_draft() {
+    let mut receipt = json!({
+        "schema_version":"1.0.0-draft",
+        "artifact":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifest_hash":"sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "policy_hash":"sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "bundle_hash":"sha256:abababababababababababababababababababababababababababababababab",
+        "inputs_hash":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "outputs_hash":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "runtime_version_digest":"sha256:1212121212121212121212121212121212121212121212121212121212121212",
+        "result_digest":"sha256:3434343434343434343434343434343434343434343434343434343434343434",
+        "caps_requested":["env:HOME"],
+        "caps_granted":["env:HOME"],
+        "caps_used":["env:HOME"],
+        "result":{"status":"success","code":"ok"},
+        "runtime":{"name":"provenact","version":"0.1.0","profile":"v1-draft"},
+        "started_at":1738600000,
+        "finished_at":1738600999,
+        "timestamp_strategy":"local_untrusted_unix_seconds",
+        "receipt_hash":"sha256:3333333333333333333333333333333333333333333333333333333333333333"
+    });
+    let parsed = parse_receipt_v1_draft_json(
+        &serde_json::to_vec(&receipt).expect("receipt json should serialize"),
+    )
+    .expect("receipt should parse");
+    let receipt_hash = compute_receipt_v1_draft_hash(&parsed).expect("receipt hash should compute");
+    receipt["receipt_hash"] = json!(receipt_hash);
+
+    let app = router(test_state_without_database());
+    let payload =
+        serde_json::to_vec(&json!({ "receipt": receipt })).expect("request body should serialize");
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/verify/receipt")
+                .header("content-type", "application/json")
+                .body(Body::from(payload))
+                .expect("request should build"),
+        )
+        .await
+        .expect("router should return a response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let value = json_body(response).await;
+    assert_eq!(
+        value.get("schema_version").and_then(Value::as_str),
+        Some("1.0.0-draft")
+    );
+    assert_eq!(value.get("valid").and_then(Value::as_bool), Some(true));
+}
+
+#[tokio::test]
+async fn verify_receipt_rejects_v1_draft_hash_mismatch() {
     let app = router(test_state_without_database());
     let response = app
             .oneshot(
@@ -167,13 +221,9 @@ async fn verify_receipt_accepts_v1_draft() {
             )
             .await
             .expect("router should return a response");
-    assert_eq!(response.status(), StatusCode::OK);
-    let value = json_body(response).await;
-    assert_eq!(
-        value.get("schema_version").and_then(Value::as_str),
-        Some("1.0.0-draft")
-    );
-    assert_eq!(value.get("valid").and_then(Value::as_bool), Some(true));
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let message = json_error_message(response).await;
+    assert!(message.contains("receipt verification failed"));
 }
 
 #[tokio::test]

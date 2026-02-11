@@ -1,7 +1,7 @@
 use provenact_verifier::{
     enforce_capability_ceiling, parse_manifest_json, parse_manifest_v1_draft_json,
     parse_policy_document, parse_receipt_json, parse_receipt_v1_draft_json, sha256_prefixed,
-    verify_receipt_hash,
+    verify_receipt_hash, verify_receipt_v1_draft_hash,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -94,6 +94,8 @@ pub fn verify_receipt_value(receipt: &Value) -> Result<ReceiptVerification, Stri
         Some(EXPERIMENTAL_SCHEMA_VERSION) => {
             let parsed = parse_receipt_v1_draft_json(&receipt_bytes)
                 .map_err(|err| format!("invalid receipt: {err}"))?;
+            verify_receipt_v1_draft_hash(&parsed)
+                .map_err(|err| format!("receipt verification failed: {err}"))?;
             Ok(ReceiptVerification {
                 schema_version: EXPERIMENTAL_SCHEMA_VERSION.to_string(),
                 artifact: parsed.artifact,
@@ -126,6 +128,7 @@ fn schema_version(value: &Value) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use provenact_verifier::{compute_receipt_v1_draft_hash, parse_receipt_v1_draft_json};
     use serde_json::json;
 
     #[test]
@@ -165,5 +168,67 @@ mod tests {
         let out = verify_receipt_value(&receipt).expect("receipt should verify");
         assert_eq!(out.schema_version, V0_SCHEMA_VERSION);
         assert!(out.valid);
+    }
+
+    #[test]
+    fn verify_receipt_v1_draft_works() {
+        let mut receipt = json!({
+            "schema_version":"1.0.0-draft",
+            "artifact":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "manifest_hash":"sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "policy_hash":"sha256:2222222222222222222222222222222222222222222222222222222222222222",
+            "bundle_hash":"sha256:abababababababababababababababababababababababababababababababab",
+            "inputs_hash":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "outputs_hash":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "runtime_version_digest":"sha256:1212121212121212121212121212121212121212121212121212121212121212",
+            "result_digest":"sha256:3434343434343434343434343434343434343434343434343434343434343434",
+            "caps_requested":["env:HOME"],
+            "caps_granted":["env:HOME"],
+            "caps_used":["env:HOME"],
+            "result":{"status":"success","code":"ok"},
+            "runtime":{"name":"provenact","version":"0.1.0","profile":"v1-draft"},
+            "started_at":1738600000,
+            "finished_at":1738600999,
+            "timestamp_strategy":"local_untrusted_unix_seconds",
+            "receipt_hash":"sha256:3333333333333333333333333333333333333333333333333333333333333333"
+        });
+        let parsed = parse_receipt_v1_draft_json(
+            &serde_json::to_vec(&receipt).expect("receipt json should serialize"),
+        )
+        .expect("receipt should parse");
+        let receipt_hash =
+            compute_receipt_v1_draft_hash(&parsed).expect("receipt hash should compute");
+        receipt["receipt_hash"] = json!(receipt_hash);
+
+        let out = verify_receipt_value(&receipt).expect("receipt should verify");
+        assert_eq!(out.schema_version, EXPERIMENTAL_SCHEMA_VERSION);
+        assert!(out.valid);
+    }
+
+    #[test]
+    fn verify_receipt_v1_draft_rejects_hash_mismatch() {
+        let receipt = json!({
+            "schema_version":"1.0.0-draft",
+            "artifact":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "manifest_hash":"sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "policy_hash":"sha256:2222222222222222222222222222222222222222222222222222222222222222",
+            "bundle_hash":"sha256:abababababababababababababababababababababababababababababababab",
+            "inputs_hash":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "outputs_hash":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "runtime_version_digest":"sha256:1212121212121212121212121212121212121212121212121212121212121212",
+            "result_digest":"sha256:3434343434343434343434343434343434343434343434343434343434343434",
+            "caps_requested":["env:HOME"],
+            "caps_granted":["env:HOME"],
+            "caps_used":["env:HOME"],
+            "result":{"status":"success","code":"ok"},
+            "runtime":{"name":"provenact","version":"0.1.0","profile":"v1-draft"},
+            "started_at":1738600000,
+            "finished_at":1738600999,
+            "timestamp_strategy":"local_untrusted_unix_seconds",
+            "receipt_hash":"sha256:3333333333333333333333333333333333333333333333333333333333333333"
+        });
+
+        let err = verify_receipt_value(&receipt).expect_err("receipt must fail hash check");
+        assert!(err.contains("receipt verification failed"));
     }
 }
