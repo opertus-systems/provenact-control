@@ -126,6 +126,62 @@ async fn verify_manifest_rejects_unknown_schema_version() {
     assert!(message.contains("unsupported manifest schema version"));
 }
 
+#[test]
+fn parse_publish_manifest_accepts_v0() {
+    let manifest = json!({
+        "name":"echo.minimal",
+        "version":"0.1.0",
+        "entrypoint":"run",
+        "artifact":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "capabilities":[],
+        "signers":["alice.dev"]
+    });
+
+    let parsed = parse_publish_manifest(&manifest).expect("manifest should parse");
+    assert_eq!(parsed.name, "echo.minimal");
+    assert_eq!(parsed.version, "0.1.0");
+    assert_eq!(
+        parsed.artifact_digest,
+        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    );
+}
+
+#[test]
+fn parse_publish_manifest_accepts_v1_draft() {
+    let manifest = json!({
+        "schema_version":"1.0.0-draft",
+        "id":"echo.minimal",
+        "version":"0.2.0",
+        "entrypoint":"run",
+        "artifact":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "inputs_schema":{"type":"object"},
+        "outputs_schema":{"type":"object"},
+        "capabilities":[],
+        "signers":["alice.dev"]
+    });
+
+    let parsed = parse_publish_manifest(&manifest).expect("manifest should parse");
+    assert_eq!(parsed.name, "echo.minimal");
+    assert_eq!(parsed.version, "0.2.0");
+}
+
+#[test]
+fn parse_publish_manifest_rejects_unknown_schema_version() {
+    let manifest = json!({
+        "schema_version":"9.9.9",
+        "name":"echo.minimal",
+        "version":"0.1.0",
+        "entrypoint":"run",
+        "artifact":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "capabilities":[],
+        "signers":["alice.dev"]
+    });
+
+    let err = parse_publish_manifest(&manifest).expect_err("unknown schemas must fail");
+    assert_eq!(err.status, StatusCode::BAD_REQUEST);
+    assert!(err.message.contains("unsupported manifest schema version"));
+}
+
 #[tokio::test]
 async fn verify_receipt_accepts_v0() {
     let app = router(test_state_without_database());
