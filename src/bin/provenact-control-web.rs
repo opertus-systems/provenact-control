@@ -374,7 +374,8 @@ async fn init_postgres() -> Result<Option<PgPool>, Box<dyn std::error::Error>> {
         .connect(&database_url)
         .await?;
 
-    let migrator = sqlx::migrate::Migrator::new(FsPath::new("./migrations")).await?;
+    let migration_dir = FsPath::new(env!("CARGO_MANIFEST_DIR")).join("migrations");
+    let migrator = sqlx::migrate::Migrator::new(migration_dir).await?;
     migrator.run(&pool).await?;
     info!("database connected and migrations applied");
     Ok(Some(pool))
