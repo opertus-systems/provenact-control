@@ -9,7 +9,6 @@ use axum::{
 };
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use provenact_control::{hash_payload_sha256, verify_manifest_value, verify_receipt_value};
-use provenact_verifier::parse_manifest_json;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
@@ -115,6 +114,13 @@ struct PublishPackageVersionRequest {
 #[derive(Debug, Serialize)]
 struct PublishPackageVersionResponse {
     package: String,
+    version: String,
+    artifact_digest: String,
+}
+
+#[derive(Debug)]
+struct PublishedManifest {
+    name: String,
     version: String,
     artifact_digest: String,
 }
@@ -462,6 +468,15 @@ fn require_database(state: &AppState) -> Result<PgPool, ApiError> {
         .ok_or_else(|| ApiError::service_unavailable("database is not configured"))
 }
 
+fn parse_publish_manifest(manifest: &Value) -> Result<PublishedManifest, ApiError> {
+    let verified = verify_manifest_value(manifest, None).map_err(ApiError::bad_request)?;
+    Ok(PublishedManifest {
+        name: verified.name,
+        version: verified.version,
+        artifact_digest: verified.artifact,
+    })
+}
+
 async fn request_ctx(headers: &HeaderMap, state: &AppState) -> Result<RequestCtx, ApiError> {
     let pool = require_database(state)?;
     let user_id = current_user_id(headers, state, &pool).await?;
@@ -803,11 +818,7 @@ async fn publish_package_version(
     Json(request): Json<PublishPackageVersionRequest>,
 ) -> Result<Json<PublishPackageVersionResponse>, ApiError> {
     let ctx = request_ctx(&headers, &state).await?;
-
-    let manifest_bytes = serde_json::to_vec(&request.manifest)
-        .map_err(|err| ApiError::bad_request(format!("manifest serialization failed: {err}")))?;
-    let manifest = parse_manifest_json(&manifest_bytes)
-        .map_err(|err| ApiError::bad_request(format!("invalid manifest: {err}")))?;
+    let manifest = parse_publish_manifest(&request.manifest)?;
 
     if manifest.name != package {
         return Err(ApiError::bad_request(
@@ -823,7 +834,7 @@ async fn publish_package_version(
     )
     .bind(&package_id)
     .bind(&manifest.version)
-    .bind(&manifest.artifact)
+    .bind(&manifest.artifact_digest)
     .bind(request.manifest)
     .bind(&ctx.user_id)
     .execute(&ctx.pool)
@@ -844,7 +855,7 @@ async fn publish_package_version(
     Ok(Json(PublishPackageVersionResponse {
         package,
         version: manifest.version,
-        artifact_digest: manifest.artifact,
+        artifact_digest: manifest.artifact_digest,
     }))
 }
 
