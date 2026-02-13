@@ -482,6 +482,24 @@ fn list_logs_treats_blank_severity_filter_as_absent() {
 }
 
 #[test]
+fn normalize_required_text_field_rejects_oversized_values() {
+    let result = normalize_required_text_field("message", &"a".repeat(5), 4);
+    assert!(result.is_err());
+}
+
+#[test]
+fn normalize_optional_text_field_trims_blank_to_none() {
+    let result = normalize_optional_text_field("description", Some("   ".to_string()), 10);
+    assert_eq!(result.expect("blank should normalize to none"), None);
+}
+
+#[test]
+fn normalize_optional_text_field_rejects_oversized_values() {
+    let result = normalize_optional_text_field("q", Some("a".repeat(513)), 512);
+    assert!(result.is_err());
+}
+
+#[test]
 fn audit_severity_for_context_status_maps_failed_to_error() {
     assert_eq!(audit_severity_for_context_status("failed"), "error");
 }
