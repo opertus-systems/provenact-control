@@ -704,6 +704,17 @@ fn normalize_log_severity(value: &str) -> Result<String, ApiError> {
     }
 }
 
+fn normalize_optional_log_severity(value: Option<String>) -> Result<Option<String>, ApiError> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    normalize_log_severity(trimmed).map(Some)
+}
+
 fn audit_severity_for_context_status(status: &str) -> &'static str {
     match status {
         "failed" => "error",
@@ -1210,6 +1221,7 @@ async fn list_context_logs(
     Path(context_id): Path<String>,
     Query(query): Query<ListContextLogsQuery>,
 ) -> Result<Json<ListContextLogsResponse>, ApiError> {
+    let severity = normalize_optional_log_severity(query.severity)?;
     let ctx = request_ctx(&headers, &state).await?;
     let limit = normalize_limit(query.limit, 50, 200);
     let from = normalize_rfc3339_timestamp("from", query.from)?;
@@ -1242,7 +1254,7 @@ async fn list_context_logs(
          LIMIT $7",
     )
     .bind(&context_id)
-    .bind(query.severity.as_deref())
+    .bind(severity.as_deref())
     .bind(query.q.as_deref())
     .bind(query.before_id)
     .bind(from.as_deref())

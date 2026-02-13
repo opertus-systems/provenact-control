@@ -470,6 +470,18 @@ fn append_log_requires_valid_severity() {
 }
 
 #[test]
+fn list_logs_rejects_invalid_severity_filter() {
+    let result = normalize_optional_log_severity(Some("trace".to_string()));
+    assert!(result.is_err());
+}
+
+#[test]
+fn list_logs_treats_blank_severity_filter_as_absent() {
+    let result = normalize_optional_log_severity(Some("   ".to_string()));
+    assert_eq!(result.expect("blank value should normalize"), None);
+}
+
+#[test]
 fn audit_severity_for_context_status_maps_failed_to_error() {
     assert_eq!(audit_severity_for_context_status("failed"), "error");
 }
