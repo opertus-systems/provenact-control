@@ -27,6 +27,11 @@ struct AppState {
 }
 
 const MIN_API_AUTH_SECRET_BYTES: usize = 32;
+const MAX_PACKAGE_NAME_CHARS: usize = 128;
+const MAX_PACKAGE_DESCRIPTION_CHARS: usize = 2048;
+const MAX_CONTEXT_REGION_CHARS: usize = 128;
+const MAX_LOG_MESSAGE_CHARS: usize = 4096;
+const MAX_LOG_QUERY_CHARS: usize = 512;
 
 #[derive(Debug)]
 struct RequestCtx {
@@ -691,6 +696,43 @@ fn normalize_context_status_required(value: &str) -> Result<String, ApiError> {
     }
 }
 
+fn normalize_required_text_field(
+    field_name: &str,
+    value: &str,
+    max_chars: usize,
+) -> Result<String, ApiError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(ApiError::bad_request(format!("{field_name} is required")));
+    }
+    if trimmed.chars().count() > max_chars {
+        return Err(ApiError::bad_request(format!(
+            "{field_name} must be at most {max_chars} characters"
+        )));
+    }
+    Ok(trimmed.to_string())
+}
+
+fn normalize_optional_text_field(
+    field_name: &str,
+    value: Option<String>,
+    max_chars: usize,
+) -> Result<Option<String>, ApiError> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    if trimmed.chars().count() > max_chars {
+        return Err(ApiError::bad_request(format!(
+            "{field_name} must be at most {max_chars} characters"
+        )));
+    }
+    Ok(Some(trimmed.to_string()))
+}
+
 fn normalize_limit(value: Option<i64>, default: i64, max: i64) -> i64 {
     value.unwrap_or(default).clamp(1, max)
 }
@@ -783,10 +825,13 @@ async fn create_package(
 ) -> Result<Json<CreatePackageResponse>, ApiError> {
     let ctx = request_ctx(&headers, &state).await?;
     let visibility = normalize_visibility(request.visibility)?;
-    let name = request.name.trim();
-    if name.is_empty() {
-        return Err(ApiError::bad_request("package name is required"));
-    }
+    let name =
+        normalize_required_text_field("package name", &request.name, MAX_PACKAGE_NAME_CHARS)?;
+    let description = normalize_optional_text_field(
+        "description",
+        request.description,
+        MAX_PACKAGE_DESCRIPTION_CHARS,
+    )?;
 
     let result = sqlx::query(
         "INSERT INTO packages (owner_id, name, visibility, description) \
@@ -796,7 +841,7 @@ async fn create_package(
     .bind(&ctx.owner_id)
     .bind(name)
     .bind(visibility)
-    .bind(request.description)
+    .bind(description)
     .fetch_one(&ctx.pool)
     .await;
 
@@ -992,10 +1037,8 @@ async fn create_context(
 ) -> Result<Json<CreateContextResponse>, ApiError> {
     let ctx = request_ctx(&headers, &state).await?;
     let status = normalize_context_status_required(request.status.trim())?;
-    let region = request.region.trim();
-    if region.is_empty() {
-        return Err(ApiError::bad_request("region is required"));
-    }
+    let region =
+        normalize_required_text_field("region", &request.region, MAX_CONTEXT_REGION_CHARS)?;
 
     let package_version_id = match (
         request.package.as_deref().map(str::trim),
@@ -1037,7 +1080,7 @@ async fn create_context(
     .bind(&ctx.owner_id)
     .bind(package_version_id.as_deref())
     .bind(&status)
-    .bind(region)
+    .bind(&region)
     .fetch_one(&ctx.pool)
     .await
     .map_err(|err| ApiError::internal(format!("failed to create context: {err}")))?;
@@ -1226,6 +1269,7 @@ async fn list_context_logs(
     let limit = normalize_limit(query.limit, 50, 200);
     let from = normalize_rfc3339_timestamp("from", query.from)?;
     let to = normalize_rfc3339_timestamp("to", query.to)?;
+    let message_query = normalize_optional_text_field("q", query.q, MAX_LOG_QUERY_CHARS)?;
 
     let context_exists =
         sqlx::query("SELECT 1 FROM contexts WHERE id = $1::uuid AND owner_id = $2::uuid LIMIT 1")
@@ -1255,7 +1299,7 @@ async fn list_context_logs(
     )
     .bind(&context_id)
     .bind(severity.as_deref())
-    .bind(query.q.as_deref())
+    .bind(message_query.as_deref())
     .bind(query.before_id)
     .bind(from.as_deref())
     .bind(to.as_deref())
@@ -1291,10 +1335,8 @@ async fn append_context_log(
 ) -> Result<Json<AppendContextLogResponse>, ApiError> {
     let ctx = request_ctx(&headers, &state).await?;
     let severity = normalize_log_severity(request.severity.trim())?;
-    let message = request.message.trim();
-    if message.is_empty() {
-        return Err(ApiError::bad_request("message is required"));
-    }
+    let message =
+        normalize_required_text_field("message", &request.message, MAX_LOG_MESSAGE_CHARS)?;
 
     let context_exists =
         sqlx::query("SELECT 1 FROM contexts WHERE id = $1::uuid AND owner_id = $2::uuid LIMIT 1")
@@ -1317,7 +1359,7 @@ async fn append_context_log(
     )
     .bind(&context_id)
     .bind(&severity)
-    .bind(message)
+    .bind(&message)
     .bind(request.metadata_json)
     .fetch_one(&ctx.pool)
     .await
