@@ -717,6 +717,11 @@ fn normalize_required_text_field(
             "{field_name} must be at most {max_chars} characters"
         )));
     }
+    if contains_control_chars(trimmed) {
+        return Err(ApiError::bad_request(format!(
+            "{field_name} must not contain control characters"
+        )));
+    }
     Ok(trimmed.to_string())
 }
 
@@ -737,7 +742,16 @@ fn normalize_optional_text_field(
             "{field_name} must be at most {max_chars} characters"
         )));
     }
+    if contains_control_chars(trimmed) {
+        return Err(ApiError::bad_request(format!(
+            "{field_name} must not contain control characters"
+        )));
+    }
     Ok(Some(trimmed.to_string()))
+}
+
+fn contains_control_chars(value: &str) -> bool {
+    value.chars().any(char::is_control)
 }
 
 fn normalize_limit(value: Option<i64>, default: i64, max: i64) -> i64 {

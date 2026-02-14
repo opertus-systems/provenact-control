@@ -599,6 +599,12 @@ fn normalize_required_text_field_rejects_oversized_values() {
 }
 
 #[test]
+fn normalize_required_text_field_rejects_control_characters() {
+    let result = normalize_required_text_field("message", "hello\nworld", 128);
+    assert!(result.is_err());
+}
+
+#[test]
 fn normalize_optional_text_field_trims_blank_to_none() {
     let result = normalize_optional_text_field("description", Some("   ".to_string()), 10);
     assert_eq!(result.expect("blank should normalize to none"), None);
@@ -607,6 +613,12 @@ fn normalize_optional_text_field_trims_blank_to_none() {
 #[test]
 fn normalize_optional_text_field_rejects_oversized_values() {
     let result = normalize_optional_text_field("q", Some("a".repeat(513)), 512);
+    assert!(result.is_err());
+}
+
+#[test]
+fn normalize_optional_text_field_rejects_control_characters() {
+    let result = normalize_optional_text_field("q", Some("user\tinput".to_string()), 512);
     assert!(result.is_err());
 }
 
