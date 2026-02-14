@@ -1,5 +1,6 @@
 use super::*;
 use axum::{body::Body, http::Request};
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use provenact_verifier::{compute_receipt_v1_draft_hash, parse_receipt_v1_draft_json};
 use serde_json::json;
 use tower::ServiceExt;
@@ -44,6 +45,25 @@ async fn json_body(response: Response) -> Value {
         .await
         .expect("response body should be readable");
     serde_json::from_slice(&bytes).expect("response body should be json")
+}
+
+fn bearer_token_for_test(secret: &str, sub: &str, jti: &str) -> String {
+    let now = OffsetDateTime::now_utc().unix_timestamp() as usize;
+    let claims = BridgeTokenClaims {
+        sub: sub.to_string(),
+        exp: now + 300,
+        iat: now.saturating_sub(1),
+        nbf: Some(now.saturating_sub(1)),
+        jti: Some(jti.to_string()),
+        iss: Some("provenact-web".to_string()),
+        aud: Some("provenact-control".to_string()),
+    };
+    encode(
+        &Header::new(Algorithm::HS256),
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
+    .expect("test token should encode")
 }
 
 #[tokio::test]
@@ -411,6 +431,59 @@ async fn contexts_endpoints_reject_non_bearer_authorization() {
 }
 
 #[tokio::test]
+async fn contexts_endpoints_reject_invalid_token_subject_before_database_calls() {
+    let state = test_state_with_database();
+    let token = bearer_token_for_test(
+        state.api_auth_secret.as_deref().expect("secret"),
+        "not-a-uuid",
+        "test-jti",
+    );
+    let app = router(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/contexts")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("router should return a response");
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let message = json_error_message(response).await;
+    assert_eq!(message, "invalid auth token subject");
+}
+
+#[tokio::test]
+async fn contexts_endpoints_reject_oversized_token_id_before_database_calls() {
+    let state = test_state_with_database();
+    let oversized_jti = "a".repeat(MAX_JWT_JTI_CHARS + 1);
+    let token = bearer_token_for_test(
+        state.api_auth_secret.as_deref().expect("secret"),
+        "00000000-0000-0000-0000-000000000001",
+        &oversized_jti,
+    );
+    let app = router(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/contexts")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("router should return a response");
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let message = json_error_message(response).await;
+    assert_eq!(message, "invalid auth token id");
+}
+
+#[tokio::test]
 async fn contexts_endpoints_require_database_configuration() {
     let app = router(test_state_without_database());
 
@@ -575,4 +648,14 @@ fn validate_api_auth_secret_accepts_long_values() {
         result.expect("expected valid secret"),
         "0123456789abcdef0123456789abcdef"
     );
+}
+
+#[test]
+fn canonical_uuid_validation_accepts_standard_uuid() {
+    assert!(is_canonical_uuid("00000000-0000-0000-0000-000000000001"));
+}
+
+#[test]
+fn canonical_uuid_validation_rejects_non_uuid_text() {
+    assert!(!is_canonical_uuid("not-a-uuid"));
 }
