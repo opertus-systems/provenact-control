@@ -29,7 +29,7 @@ path = "src/bin/provenact-control-api.rs"
 required-features = ["web"]
 
 [dependencies]
-axum = { version = "0.7", features = ["json"], optional = true }
+axum = { version = "0.8", features = ["json"], optional = true }
 provenact-verifier = { git = "https://github.com/opertus-systems/provenact-cli.git", rev = "edcd94c", package = "provenact-verifier" }
 jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"], optional = true }
 serde = { version = "1", features = ["derive"] }
