@@ -542,7 +542,8 @@ async fn current_user_id(
         return Err(ApiError::unauthorized("auth token issued in the future"));
     }
     if let Some(nbf) = claims.nbf {
-        let nbf = nbf as i64;
+        let nbf =
+            i64::try_from(nbf).map_err(|_| ApiError::unauthorized("invalid auth token nbf"))?;
         if nbf > now + 60 {
             return Err(ApiError::unauthorized("auth token not yet valid"));
         }
