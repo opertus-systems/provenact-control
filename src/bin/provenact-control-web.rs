@@ -32,6 +32,8 @@ const MAX_PACKAGE_DESCRIPTION_CHARS: usize = 2048;
 const MAX_CONTEXT_REGION_CHARS: usize = 128;
 const MAX_LOG_MESSAGE_CHARS: usize = 4096;
 const MAX_LOG_QUERY_CHARS: usize = 512;
+const CANONICAL_UUID_CHARS: usize = 36;
+const MAX_JWT_JTI_CHARS: usize = 128;
 
 #[derive(Debug)]
 struct RequestCtx {
@@ -241,7 +243,7 @@ struct ListContextLogsQuery {
     to: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct BridgeTokenClaims {
     sub: String,
     exp: usize,
@@ -524,12 +526,15 @@ async fn current_user_id(
     .map_err(|_| ApiError::unauthorized("invalid or expired auth token"))?;
 
     let claims = decoded.claims;
-    if claims.sub.is_empty() {
+    let subject = claims.sub.trim();
+    if subject.is_empty() || !is_canonical_uuid(subject) {
         return Err(ApiError::unauthorized("invalid auth token subject"));
     }
     let now = OffsetDateTime::now_utc().unix_timestamp();
-    let exp = claims.exp as i64;
-    let iat = claims.iat as i64;
+    let exp = i64::try_from(claims.exp)
+        .map_err(|_| ApiError::unauthorized("invalid auth token expiration"))?;
+    let iat =
+        i64::try_from(claims.iat).map_err(|_| ApiError::unauthorized("invalid auth token iat"))?;
     if exp <= now {
         return Err(ApiError::unauthorized("expired auth token"));
     }
@@ -546,13 +551,14 @@ async fn current_user_id(
         .jti
         .as_deref()
         .ok_or_else(|| ApiError::unauthorized("missing auth token id"))?;
-    if jti.trim().is_empty() {
+    let jti = jti.trim();
+    if jti.is_empty() || jti.chars().count() > MAX_JWT_JTI_CHARS {
         return Err(ApiError::unauthorized("invalid auth token id"));
     }
     guard_replay(pool, jti, exp).await?;
     let _ = claims.iss;
     let _ = claims.aud;
-    Ok(claims.sub)
+    Ok(subject.to_string())
 }
 
 async fn guard_replay(pool: &PgPool, jti: &str, exp: i64) -> Result<(), ApiError> {
@@ -788,6 +794,25 @@ fn normalize_rfc3339_timestamp(
         .format(&Rfc3339)
         .map(Some)
         .map_err(|_| ApiError::internal("failed to normalize timestamp"))
+}
+
+fn is_canonical_uuid(value: &str) -> bool {
+    if value.len() != CANONICAL_UUID_CHARS {
+        return false;
+    }
+    for (index, byte) in value.bytes().enumerate() {
+        let is_hyphen = matches!(index, 8 | 13 | 18 | 23);
+        if is_hyphen {
+            if byte != b'-' {
+                return false;
+            }
+            continue;
+        }
+        if !byte.is_ascii_hexdigit() {
+            return false;
+        }
+    }
+    true
 }
 
 async fn list_packages(
