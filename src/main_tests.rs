@@ -58,6 +58,10 @@ fn bearer_token_for_test(secret: &str, sub: &str, jti: &str) -> String {
         iss: Some("provenact-web".to_string()),
         aud: Some("provenact-control".to_string()),
     };
+    bearer_token_from_claims(secret, claims)
+}
+
+fn bearer_token_from_claims(secret: &str, claims: BridgeTokenClaims) -> String {
     encode(
         &Header::new(Algorithm::HS256),
         &claims,
@@ -481,6 +485,40 @@ async fn contexts_endpoints_reject_oversized_token_id_before_database_calls() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     let message = json_error_message(response).await;
     assert_eq!(message, "invalid auth token id");
+}
+
+#[tokio::test]
+async fn contexts_endpoints_reject_unrepresentable_token_nbf_before_database_calls() {
+    let state = test_state_with_database();
+    let now = OffsetDateTime::now_utc().unix_timestamp() as usize;
+    let token = bearer_token_from_claims(
+        state.api_auth_secret.as_deref().expect("secret"),
+        BridgeTokenClaims {
+            sub: "00000000-0000-0000-0000-000000000001".to_string(),
+            exp: now + 300,
+            iat: now.saturating_sub(1),
+            nbf: Some(usize::MAX),
+            jti: Some("test-jti".to_string()),
+            iss: Some("provenact-web".to_string()),
+            aud: Some("provenact-control".to_string()),
+        },
+    );
+    let app = router(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/contexts")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("router should return a response");
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let message = json_error_message(response).await;
+    assert_eq!(message, "invalid auth token nbf");
 }
 
 #[tokio::test]
