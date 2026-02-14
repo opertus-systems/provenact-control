@@ -830,6 +830,16 @@ fn is_canonical_uuid(value: &str) -> bool {
     true
 }
 
+fn normalize_uuid_param(field_name: &str, value: &str) -> Result<String, ApiError> {
+    let trimmed = value.trim();
+    if !is_canonical_uuid(trimmed) {
+        return Err(ApiError::bad_request(format!(
+            "{field_name} must be a canonical UUID"
+        )));
+    }
+    Ok(trimmed.to_string())
+}
+
 async fn list_packages(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1145,6 +1155,7 @@ async fn get_context(
     Path(context_id): Path<String>,
 ) -> Result<Json<GetContextResponse>, ApiError> {
     let ctx = request_ctx(&headers, &state).await?;
+    let context_id = normalize_uuid_param("context_id", &context_id)?;
 
     let row = sqlx::query(
         "SELECT
@@ -1196,6 +1207,7 @@ async fn update_context(
 ) -> Result<Json<UpdateContextResponse>, ApiError> {
     let ctx = request_ctx(&headers, &state).await?;
     let status = normalize_context_status_required(request.status.trim())?;
+    let context_id = normalize_uuid_param("context_id", &context_id)?;
     let mut tx = ctx
         .pool
         .begin()
@@ -1306,6 +1318,7 @@ async fn list_context_logs(
 ) -> Result<Json<ListContextLogsResponse>, ApiError> {
     let severity = normalize_optional_log_severity(query.severity)?;
     let ctx = request_ctx(&headers, &state).await?;
+    let context_id = normalize_uuid_param("context_id", &context_id)?;
     let limit = normalize_limit(query.limit, 50, 200);
     let from = normalize_rfc3339_timestamp("from", query.from)?;
     let to = normalize_rfc3339_timestamp("to", query.to)?;
@@ -1374,6 +1387,7 @@ async fn append_context_log(
     Json(request): Json<AppendContextLogRequest>,
 ) -> Result<Json<AppendContextLogResponse>, ApiError> {
     let ctx = request_ctx(&headers, &state).await?;
+    let context_id = normalize_uuid_param("context_id", &context_id)?;
     let severity = normalize_log_severity(request.severity.trim())?;
     let message =
         normalize_required_text_field("message", &request.message, MAX_LOG_MESSAGE_CHARS)?;
