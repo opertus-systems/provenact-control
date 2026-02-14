@@ -709,3 +709,17 @@ fn canonical_uuid_validation_accepts_standard_uuid() {
 fn canonical_uuid_validation_rejects_non_uuid_text() {
     assert!(!is_canonical_uuid("not-a-uuid"));
 }
+
+#[test]
+fn normalize_uuid_param_accepts_canonical_uuid() {
+    let normalized = normalize_uuid_param("context_id", "00000000-0000-0000-0000-000000000001")
+        .expect("uuid should normalize");
+    assert_eq!(normalized, "00000000-0000-0000-0000-000000000001");
+}
+
+#[test]
+fn normalize_uuid_param_rejects_invalid_uuid() {
+    let err = normalize_uuid_param("context_id", "not-a-uuid").expect_err("invalid uuid must fail");
+    assert_eq!(err.status, StatusCode::BAD_REQUEST);
+    assert!(err.message.contains("context_id must be a canonical UUID"));
+}
