@@ -58,6 +58,10 @@ fn bearer_token_for_test(secret: &str, sub: &str, jti: &str) -> String {
         iss: Some("provenact-web".to_string()),
         aud: Some("provenact-control".to_string()),
     };
+    bearer_token_from_claims(secret, claims)
+}
+
+fn bearer_token_from_claims(secret: &str, claims: BridgeTokenClaims) -> String {
     encode(
         &Header::new(Algorithm::HS256),
         &claims,
@@ -484,6 +488,40 @@ async fn contexts_endpoints_reject_oversized_token_id_before_database_calls() {
 }
 
 #[tokio::test]
+async fn contexts_endpoints_reject_unrepresentable_token_nbf_before_database_calls() {
+    let state = test_state_with_database();
+    let now = OffsetDateTime::now_utc().unix_timestamp() as usize;
+    let token = bearer_token_from_claims(
+        state.api_auth_secret.as_deref().expect("secret"),
+        BridgeTokenClaims {
+            sub: "00000000-0000-0000-0000-000000000001".to_string(),
+            exp: now + 300,
+            iat: now.saturating_sub(1),
+            nbf: Some(usize::MAX),
+            jti: Some("test-jti".to_string()),
+            iss: Some("provenact-web".to_string()),
+            aud: Some("provenact-control".to_string()),
+        },
+    );
+    let app = router(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/contexts")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("router should return a response");
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let message = json_error_message(response).await;
+    assert_eq!(message, "invalid auth token nbf");
+}
+
+#[tokio::test]
 async fn contexts_endpoints_require_database_configuration() {
     let app = router(test_state_without_database());
 
@@ -561,6 +599,12 @@ fn normalize_required_text_field_rejects_oversized_values() {
 }
 
 #[test]
+fn normalize_required_text_field_rejects_control_characters() {
+    let result = normalize_required_text_field("message", "hello\nworld", 128);
+    assert!(result.is_err());
+}
+
+#[test]
 fn normalize_optional_text_field_trims_blank_to_none() {
     let result = normalize_optional_text_field("description", Some("   ".to_string()), 10);
     assert_eq!(result.expect("blank should normalize to none"), None);
@@ -569,6 +613,12 @@ fn normalize_optional_text_field_trims_blank_to_none() {
 #[test]
 fn normalize_optional_text_field_rejects_oversized_values() {
     let result = normalize_optional_text_field("q", Some("a".repeat(513)), 512);
+    assert!(result.is_err());
+}
+
+#[test]
+fn normalize_optional_text_field_rejects_control_characters() {
+    let result = normalize_optional_text_field("q", Some("user\tinput".to_string()), 512);
     assert!(result.is_err());
 }
 
@@ -658,4 +708,18 @@ fn canonical_uuid_validation_accepts_standard_uuid() {
 #[test]
 fn canonical_uuid_validation_rejects_non_uuid_text() {
     assert!(!is_canonical_uuid("not-a-uuid"));
+}
+
+#[test]
+fn normalize_uuid_param_accepts_canonical_uuid() {
+    let normalized = normalize_uuid_param("context_id", "00000000-0000-0000-0000-000000000001")
+        .expect("uuid should normalize");
+    assert_eq!(normalized, "00000000-0000-0000-0000-000000000001");
+}
+
+#[test]
+fn normalize_uuid_param_rejects_invalid_uuid() {
+    let err = normalize_uuid_param("context_id", "not-a-uuid").expect_err("invalid uuid must fail");
+    assert_eq!(err.status, StatusCode::BAD_REQUEST);
+    assert!(err.message.contains("context_id must be a canonical UUID"));
 }

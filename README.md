@@ -8,6 +8,7 @@ Verifier compatibility pin: `COMPATIBILITY.md`.
 ## Planning
 
 - Product + implementation roadmap: `docs/site-plan.md`
+- API stability subset + deprecation policy: `docs/api-stability.md`
 - Architecture decisions (ADR): `docs/adr/`
 
 ## Scope

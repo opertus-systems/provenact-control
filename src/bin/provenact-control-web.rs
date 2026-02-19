@@ -542,7 +542,8 @@ async fn current_user_id(
         return Err(ApiError::unauthorized("auth token issued in the future"));
     }
     if let Some(nbf) = claims.nbf {
-        let nbf = nbf as i64;
+        let nbf =
+            i64::try_from(nbf).map_err(|_| ApiError::unauthorized("invalid auth token nbf"))?;
         if nbf > now + 60 {
             return Err(ApiError::unauthorized("auth token not yet valid"));
         }
@@ -716,6 +717,11 @@ fn normalize_required_text_field(
             "{field_name} must be at most {max_chars} characters"
         )));
     }
+    if contains_control_chars(trimmed) {
+        return Err(ApiError::bad_request(format!(
+            "{field_name} must not contain control characters"
+        )));
+    }
     Ok(trimmed.to_string())
 }
 
@@ -736,7 +742,16 @@ fn normalize_optional_text_field(
             "{field_name} must be at most {max_chars} characters"
         )));
     }
+    if contains_control_chars(trimmed) {
+        return Err(ApiError::bad_request(format!(
+            "{field_name} must not contain control characters"
+        )));
+    }
     Ok(Some(trimmed.to_string()))
+}
+
+fn contains_control_chars(value: &str) -> bool {
+    value.chars().any(char::is_control)
 }
 
 fn normalize_limit(value: Option<i64>, default: i64, max: i64) -> i64 {
@@ -813,6 +828,16 @@ fn is_canonical_uuid(value: &str) -> bool {
         }
     }
     true
+}
+
+fn normalize_uuid_param(field_name: &str, value: &str) -> Result<String, ApiError> {
+    let trimmed = value.trim();
+    if !is_canonical_uuid(trimmed) {
+        return Err(ApiError::bad_request(format!(
+            "{field_name} must be a canonical UUID"
+        )));
+    }
+    Ok(trimmed.to_string())
 }
 
 async fn list_packages(
@@ -1130,6 +1155,7 @@ async fn get_context(
     Path(context_id): Path<String>,
 ) -> Result<Json<GetContextResponse>, ApiError> {
     let ctx = request_ctx(&headers, &state).await?;
+    let context_id = normalize_uuid_param("context_id", &context_id)?;
 
     let row = sqlx::query(
         "SELECT
@@ -1181,6 +1207,7 @@ async fn update_context(
 ) -> Result<Json<UpdateContextResponse>, ApiError> {
     let ctx = request_ctx(&headers, &state).await?;
     let status = normalize_context_status_required(request.status.trim())?;
+    let context_id = normalize_uuid_param("context_id", &context_id)?;
     let mut tx = ctx
         .pool
         .begin()
@@ -1291,6 +1318,7 @@ async fn list_context_logs(
 ) -> Result<Json<ListContextLogsResponse>, ApiError> {
     let severity = normalize_optional_log_severity(query.severity)?;
     let ctx = request_ctx(&headers, &state).await?;
+    let context_id = normalize_uuid_param("context_id", &context_id)?;
     let limit = normalize_limit(query.limit, 50, 200);
     let from = normalize_rfc3339_timestamp("from", query.from)?;
     let to = normalize_rfc3339_timestamp("to", query.to)?;
@@ -1359,6 +1387,7 @@ async fn append_context_log(
     Json(request): Json<AppendContextLogRequest>,
 ) -> Result<Json<AppendContextLogResponse>, ApiError> {
     let ctx = request_ctx(&headers, &state).await?;
+    let context_id = normalize_uuid_param("context_id", &context_id)?;
     let severity = normalize_log_severity(request.severity.trim())?;
     let message =
         normalize_required_text_field("message", &request.message, MAX_LOG_MESSAGE_CHARS)?;
